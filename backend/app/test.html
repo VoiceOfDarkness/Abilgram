@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        /* Keeping the same styles... */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .sent {
+            background-color: #e3f2fd;
+            margin-left: 20px;
+        }
+
+        .received {
+            background-color: #f5f5f5;
+            margin-right: 20px;
+        }
+
+        #connection-status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .connected {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .disconnected {
+            background-color: #ffcdd2;
+            color: #c62828;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #1976d2;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="connection-status" class="disconnected">Disconnected</div>
+
+    <!-- Room controls -->
+    <div class="input-area">
+        <input type="text" id="room-id" placeholder="Enter room ID">
+        <button onclick="joinRoom()">Join Room</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <div class="input-area">
+        <input type="text" id="message" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:8000/chat', {
+            transports: ['websocket'],
+            autoConnect: true,
+            cors: {
+                origin: "http://localhost:5173"
+            }
+        });
+
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('message');
+        const roomInput = document.getElementById('room-id');
+        const statusDiv = document.getElementById('connection-status');
+
+        let currentRoom = null;
+
+        // Connection handlers
+        socket.on('connect', () => {
+            statusDiv.textContent = 'Connected';
+            statusDiv.classList.remove('disconnected');
+            statusDiv.classList.add('connected');
+            addMessage('System', 'Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            statusDiv.textContent = 'Disconnected';
+            statusDiv.classList.remove('connected');
+            statusDiv.classList.add('disconnected');
+            addMessage('System', 'Disconnected from server');
+        });
+
+        // Chat event handlers
+        socket.on('new_message', (data) => {
+            addMessage(data.user_id, data.message, 'received');
+        });
+
+        socket.on('user_joined', (data) => {
+            addMessage('System', `User ${data.user_id} joined room ${data.room_id}`);
+        });
+
+        socket.on('connection_response', (data) => {
+            addMessage('System', `Connection status: ${data.status}`);
+        });
+
+        function joinRoom() {
+            const roomId = roomInput.value.trim();
+            if (roomId) {
+                currentRoom = roomId;
+                socket.emit('join', { room_id: roomId });
+                addMessage('System', `Joining room: ${roomId}`);
+            }
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && currentRoom) {
+                socket.emit('message', {
+                    room_id: currentRoom,
+                    message: message
+                });
+                addMessage('You', message, 'sent');
+                messageInput.value = '';
+            } else if (!currentRoom) {
+                addMessage('System', 'Please join a room first');
+            }
+        }
+
+        function addMessage(sender, message, type = '') {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', type);
+            messageElement.textContent = `${sender}: ${message}`;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Handle Enter key
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        roomInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinRoom();
+            }
+        });
+    </script>
+</body>
+
+</html>

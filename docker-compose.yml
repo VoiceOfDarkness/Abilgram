@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  frontend:
+    build: ./frontend
+    env_file:
+      - .env
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:13
+    env_file:
+      - .env
+    volumes:
+      - abilgramdata:/var/lib/postgresql/data/
+    ports:
+      - "5433:5432"
+    restart: on-failure:3
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app_network
+
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql
+    ports:
+      - 3567:3567
+    env_file:
+      - .env
+    environment:
+      POSTGRESQL_CONNECTION_URI: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+    restart: unless-stopped
+    depends_on:
+      - db
+    networks:
+      - app_network
+    # healthcheck:
+    #   test: >
+    #     bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+
+  typesense:
+    image: typesense/typesense:0.21.0
+    ports:
+      - 8108:8108
+    volumes:
+      - ./typesense-data:/data
+    environment:
+      TYPESENSE_API_KEY: "xyz"
+      TYPESENSE_DATA_DIR: "/data"
+    restart: on-failure
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  abilgramdata:
+  static:
