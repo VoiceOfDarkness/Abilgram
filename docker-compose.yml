@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
     env_file:
-      - .env
+      - .env.dev
     ports:
       - "8000:8000"
     volumes:
@@ -18,19 +16,19 @@ services:
 
   frontend:
     build: ./frontend
-    env_file:
-      - .env
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
     depends_on:
       - backend
+    networks:
+      - app_network
 
   db:
     image: postgres:13
     env_file:
-      - .env
+      - .env.dev
     volumes:
       - abilgramdata:/var/lib/postgresql/data/
     ports:
@@ -47,10 +45,10 @@ services:
 
   supertokens:
     image: registry.supertokens.io/supertokens/supertokens-postgresql
+    env_file:
+      - .env.dev
     ports:
       - 3567:3567
-    env_file:
-      - .env
     environment:
       POSTGRESQL_CONNECTION_URI: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
     restart: unless-stopped

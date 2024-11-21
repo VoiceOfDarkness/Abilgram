@@ -11,8 +11,8 @@ import App from "./App.jsx";
 SuperTokens.init({
   appInfo: {
     appName: "abilgram",
-    apiDomain: "http://localhost:8000",
-    websiteDomain: "http://localhost:5173",
+    apiDomain: `${import.meta.env.VITE_WEBSITE_DOMAIN}`,
+    websiteDomain: `${import.meta.env.VITE_WEBSITE_URL}`,
     apiBasePath: "/auth",
     websiteBasePath: "/auth",
   },
