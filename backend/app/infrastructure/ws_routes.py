@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Dict
+
 import socketio
 
 logger = logging.getLogger(__name__)
@@ -19,12 +20,10 @@ class ChatNamespace(socketio.AsyncNamespace):
         logging.info(f"[USER ID] {user_id}")
 
         if user_id:
-            # Если текущий SID уже привязан к этому user_id, ничего не делаем
             if self.active_users.get(sid) == user_id:
                 logging.info(f"[SKIP] SID {sid} already assigned to User ID {user_id}")
                 return
 
-            # Удаляем старые SID для этого user_id (кроме текущего)
             existing_sids = [
                 key
                 for key, value in self.active_users.items()
@@ -41,7 +40,6 @@ class ChatNamespace(socketio.AsyncNamespace):
                 except Exception as e:
                     logging.error(f"Error disconnecting old session: {e}")
 
-            # Устанавливаем новый SID
             self.active_users[sid] = user_id
             logging.info(f"[SET USER ID] SID: {sid} -> User ID: {user_id}")
             logging.info(f"[ACTIVE USERS] {self.active_users}")
@@ -49,6 +47,17 @@ class ChatNamespace(socketio.AsyncNamespace):
     async def on_disconnect(self, sid):
         user_id = self.active_users.pop(sid, None)
         logging.info(f"[DISCONNECT] SID: {sid}, User ID: {user_id} disconnected")
+
+    async def on_chat(self, sid, data):
+
+        user_id = data.get("user_id")
+
+        logging.info(f"[ACTIVE USERS] {self.active_users}")
+
+        if not user_id or not data:
+            return
+
+        await self.emit("new_chat", data["chat"])
 
     async def on_message(self, sid, data):
         recipient_id = data.get("recipient_id")
@@ -61,12 +70,10 @@ class ChatNamespace(socketio.AsyncNamespace):
             logging.warning("Invalid message data")
             return
 
-        # Проверяем, что отправитель действительно авторизован
         if sid not in self.active_users:
             logging.warning(f"Unauthorized message attempt from SID: {sid}")
             return
 
-        # Ищем SID получателя
         recipient_sid = next(
             (s for s, u in self.active_users.items() if u == recipient_id), None
         )
@@ -78,7 +85,6 @@ class ChatNamespace(socketio.AsyncNamespace):
                 "content": message,
                 "created_at": datetime.now().isoformat(),
             }
-            # Отправляем сообщение только конкретному получателю
             await self.emit("new_message", message_data, room=recipient_sid)
             logging.info(f"Message from {sender_id} sent to {recipient_id}")
         else:

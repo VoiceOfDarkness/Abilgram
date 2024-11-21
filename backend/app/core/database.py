@@ -25,7 +25,7 @@ class Database:
         )
 
     async def create_db(self) -> None:
-        from app.models import Chat, Message, User  # noqa
+        from app.domain import models  # noqa 
 
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

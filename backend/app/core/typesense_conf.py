@@ -1,7 +1,6 @@
+from app.core.config import settings
 from typesense import Client
 from typesense.exceptions import ObjectAlreadyExists
-
-from app.config import settings
 
 client = Client(
     {
