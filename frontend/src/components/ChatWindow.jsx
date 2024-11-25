@@ -3,32 +3,66 @@ import { IoSend } from "react-icons/io5";
 import getImageUrl from "@/helpers/imageUrl";
 import { userService } from "@/api/services/userService";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Message from "./Message";
 import { authService } from "@/api/services/authService";
 import { useChat } from "@/context/ChatContext";
 import socket from "@/api/socket";
 
-function MessageHeader() {
-  const { selectedChat } = useChat();
+function MessageHeader({ currentUserId }) {
+  const { selectedChat, onlineUsers } = useChat();
+  const [isOnline, setIsOnline] = useState(false);
 
-  return selectedChat ? (
+  useEffect(() => {
+    if (selectedChat && selectedChat.members[1] && currentUserId) {
+      const otherUserId = selectedChat.members[1].supertokens_id;
+
+      // Проверяем, что это не текущий пользователь
+      if (otherUserId !== currentUserId) {
+        const userOnlineStatus = onlineUsers[otherUserId];
+
+        console.log("Other user ID:", otherUserId);
+        console.log("Current User ID:", currentUserId);
+        console.log("Online users:", onlineUsers);
+        console.log("User online status:", userOnlineStatus);
+
+        setIsOnline(!!userOnlineStatus);
+      }
+    }
+  }, [selectedChat, onlineUsers, currentUserId]);
+
+  if (!selectedChat) return null;
+
+  return (
     <div className="flex items-center justify-between p-4 bg-gray-800 relative z-10 sticky top-0">
       <div className="flex items-center">
-        <Avatar className="w-10 h-10 rounded-full">
-          <AvatarImage
-            src={getImageUrl(selectedChat.members[1].avatar_url)}
-            alt={selectedChat.name}
+        <div className="relative">
+          <Avatar className="w-10 h-10 rounded-full">
+            <AvatarImage
+              src={getImageUrl(selectedChat.members[1].avatar_url)}
+              alt={selectedChat.members[1].username}
+            />
+            <AvatarFallback className="bg-cyan-950">
+              {selectedChat.members[1].username?.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div
+            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 
+              ${isOnline ? "bg-green-500" : "bg-gray-500"}`}
           />
-          <AvatarFallback className="bg-cyan-950">
-            {selectedChat.members[1].username?.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        </div>
         <div className="ml-4">
           <p className="font-bold">{selectedChat.members[1].username}</p>
-          <p className="text-gray-400">Active now</p>
+          <p
+            className={`text-sm ${
+              isOnline ? "text-green-400" : "text-gray-400"
+            }`}
+          >
+            {isOnline ? "Active now" : "Offline"}
+          </p>
         </div>
       </div>
     </div>
-  ) : null;
+  );
 }
 
 function MessageWindow() {
@@ -127,6 +161,7 @@ function MessageWindow() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
       socket.emit("message", {
+        chat_id: selectedChat.id,
         recipient_id: recipientId,
         message: text,
       });
@@ -135,31 +170,33 @@ function MessageWindow() {
     }
   };
 
+  useEffect(() => {
+    if (!currentUserId || !socket) return;
+
+    socket.emit("set_user_id", { user_id: currentUserId });
+  }, [currentUserId, selectedChat]);
+
   return (
     <div className="relative flex flex-col w-3/4 h-screen">
       <div className="absolute inset-0 bg-[url('/images/background.png')] bg-cover bg-center opacity-50"></div>
-      {selectedChat && <MessageHeader />}
+      {selectedChat && <MessageHeader currentUserId={currentUserId} />}
       <div
         className="relative flex flex-col flex-1 w-2/3 mx-auto mb-20 px-14 my-3 overflow-y-auto custom-scrollbar"
         style={{ justifyContent: "flex-end" }}
       >
-        {messages.map((msg, index) => (
-          <div
-            key={msg.id || `${msg.sender_id}-${msg.created_at}-${index}`}
-            className={`flex w-full ${
-              msg.isOwn ? "justify-end" : "justify-start"
-            }`}
-          >
-            <p
-              className={`rounded-md my-1 py-1 px-2 max-w-xs ${
-                msg.isOwn ? "bg-blue-500 text-white" : "bg-gray-300 text-black"
-              }`}
-              style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
-            >
-              {msg.content}
-            </p>
-          </div>
-        ))}
+        {messages.map((msg, index) => {
+          const sender = selectedChat.members.find(
+            (member) => member.supertokens_id === msg.sender_id
+          );
+
+          return (
+            <Message
+              key={msg.id || `${msg.sender_id}-${msg.created_at}-${index}`}
+              message={msg}
+              sender={sender}
+            />
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
       {selectedChat && <MessageInput onSendMessage={handleSendMessage} />}

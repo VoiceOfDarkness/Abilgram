@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     # typesense
     TYPESENSE_HOST: str = os.getenv("TYPESENSE_HOST", "http://typesense:8108")
-    TYPESENSE_KEY: str = os.getenv("TYPESENSE_KEY", "xyz")
+    TYPESENSE_KEY: str = os.getenv("TYPESENSE_API_KEY", "xyz")
     TYPESENSE_PORT: str = os.getenv("TYPESENSE_PORT", "8108")
 
     # FastAPI and Supertokens

@@ -11,6 +11,7 @@ class ChatNamespace(socketio.AsyncNamespace):
     def __init__(self, namespace=None):
         super().__init__(namespace)
         self.active_users: Dict[str, str] = {}
+        self.online_users: Dict[str, bool] = {}
 
     async def on_connect(self, sid, environ):
         logging.info(f"[CONNECT] New connection, SID: {sid}")
@@ -41,11 +42,19 @@ class ChatNamespace(socketio.AsyncNamespace):
                     logging.error(f"Error disconnecting old session: {e}")
 
             self.active_users[sid] = user_id
+            self.online_users[user_id] = True
             logging.info(f"[SET USER ID] SID: {sid} -> User ID: {user_id}")
             logging.info(f"[ACTIVE USERS] {self.active_users}")
 
+    async def on_get_online_users(self, sid):
+        logging.info(f"[GET ONLINE USERS] Request from SID: {sid}")
+        logging.info(f"[ONLINE USERS] Current online users: {self.online_users}")
+        online_users = {key: value for key, value in self.online_users.items()}
+        await self.emit("online_users", online_users, room=sid)
+
     async def on_disconnect(self, sid):
         user_id = self.active_users.pop(sid, None)
+        self.online_users.pop(user_id, None)
         logging.info(f"[DISCONNECT] SID: {sid}, User ID: {user_id} disconnected")
 
     async def on_chat(self, sid, data):

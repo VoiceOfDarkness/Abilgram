@@ -14,19 +14,6 @@ function ChatPage() {
   const [chatMessages, setChatMessages] = useState([]);
   const { isLoading } = useSessionCheck();
 
-  // useEffect(() => {
-  //   const setUserId = async () => {
-  //     try {
-  //       const userId = await authService.getCurrentUserId();
-  //       socket.emit("set_user_id", { user_id: userId });
-  //     } catch (error) {
-  //       console.error("Failed to set user ID:", error);
-  //     }
-  //   };
-
-  //   setUserId();
-  // }, []);
-
   const handleSelectChat = async (chat) => {
     setSelectedChat(chat);
     try {
@@ -52,7 +39,10 @@ function ChatPage() {
         onDeleteChat={handleDeleteChat}
       />
       {selectedChat && (
-        <MemoizedMessageWindow chat={selectedChat} messages={chatMessages} />
+        <MemoizedMessageWindow
+          chat={selectedChat}
+          messages={chatMessages}
+        />
       )}
     </div>
   );

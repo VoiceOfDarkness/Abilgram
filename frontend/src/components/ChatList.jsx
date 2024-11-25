@@ -5,6 +5,7 @@ import ListSearch from "./Search";
 import getImageUrl from "@/helpers/imageUrl";
 import { userService } from "@/api/services/userService";
 import { authService } from "@/api/services/authService";
+import { formatMessageTime } from "@/helpers/formatTime";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ function ChatList({ onSelectChat, onDeleteChat }) {
   const [error, setError] = useState(null);
   const [deletingChat, setDeletingChat] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [lastMessages, setLastMessages] = useState({});
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -29,8 +31,29 @@ function ChatList({ onSelectChat, onDeleteChat }) {
           userService.getChats(),
         ]);
         setCurrentUserId(userId);
+
+        const messagesPromises = chatsData.map(async (chat) => {
+          const messages = await userService.getMessages(chat.id);
+          const lastMessage = messages[messages.length - 1];
+          return {
+            chatId: chat.id,
+            message: lastMessage,
+          };
+        });
+
+        const lastMessagesData = await Promise.all(messagesPromises);
+        const messagesMap = lastMessagesData.reduce(
+          (acc, { chatId, message }) => {
+            acc[chatId] = message;
+            return acc;
+          },
+          {}
+        );
+
+        setLastMessages(messagesMap);
         setChats(chatsData);
-        console.log("Chats data:", chatsData);
+
+        socket.emit("set_user_id", { user_id: userId });
       } catch (error) {
         console.error("Error fetching initial data:", error);
         setError("Failed to fetch initial data. Please try again.");
@@ -38,20 +61,74 @@ function ChatList({ onSelectChat, onDeleteChat }) {
     };
 
     fetchInitialData();
+
+    return () => {
+      socket.off("new_message");
+      socket.off("new_chat");
+    };
   }, []);
 
   useEffect(() => {
-    const handleNewChat = (newChat) => {
-      console.log("New chat received:", newChat);
-      setChats((prevChats) => [...prevChats, newChat]);
+    const handleNewMessage = (messageData) => {
+      const { chat_id, content, recipient_id, sender_id, created_at } =
+        messageData;
+
+      setLastMessages((prev) => ({
+        ...prev,
+        [chat_id]: {
+          content,
+          sender_id,
+          recipient_id,
+          chat_id,
+          created_at,
+        },
+      }));
+
+      setChats((prevChats) => {
+        const chatIndex = prevChats.findIndex((c) => c.id === chat_id);
+        if (chatIndex === -1) {
+          return prevChats;
+        }
+
+        const updatedChats = [...prevChats];
+        const [chatToMove] = updatedChats.splice(chatIndex, 1);
+        return [chatToMove, ...updatedChats];
+      });
     };
 
-    socket.on("new_chat", handleNewChat);
+    const handleNewChat = (newChat) => {
+      setChats((prevChats) => [newChat, ...prevChats]);
+    };
+
+    if (socket) {
+      socket.on("new_message", handleNewMessage);
+      socket.on("new_chat", handleNewChat);
+    }
 
     return () => {
-      socket.off("new_chat", handleNewChat);
+      if (socket) {
+        socket.off("new_message", handleNewMessage);
+        socket.off("new_chat", handleNewChat);
+      }
     };
-  }, []);
+  }, [chats, currentUserId]);
+
+  const getLastMessagePreview = (chat) => {
+    const lastMessage = lastMessages[chat.id];
+    if (!lastMessage) return "";
+
+    const isOwnMessage = lastMessage.sender_id === currentUserId;
+    const otherMember = chat.members.find(
+      (member) => member.id !== currentUserId
+    );
+    const prefix = isOwnMessage ? "You: " : `${otherMember?.username}: `;
+    return `${prefix}${lastMessage.content}`;
+  };
+
+  const getMessageTime = (chat) => {
+    const lastMessage = lastMessages[chat.id];
+    return formatMessageTime(lastMessage?.created_at);
+  };
 
   const fetchChats = async () => {
     try {
@@ -81,6 +158,10 @@ function ChatList({ onSelectChat, onDeleteChat }) {
     setIsDropdownOpen(true);
   };
 
+  const filteredChats = chats.filter((chat) =>
+    chat.members[1].username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="relative flex flex-col w-1/4 bg-gray-800">
       <ListSearch
@@ -90,7 +171,7 @@ function ChatList({ onSelectChat, onDeleteChat }) {
       />
       <h2 className="text-lg font-bold mb-2 p-4">Chats</h2>
       <ScrollArea className="flex flex-col h-full p-3 space-y-2">
-        {chats.map((chat) => (
+        {filteredChats.map((chat) => (
           <div
             key={chat.id}
             onContextMenu={(e) => handleContextMenu(e, chat)}
@@ -106,10 +187,15 @@ function ChatList({ onSelectChat, onDeleteChat }) {
                 {chat.members[1].username?.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-white">{chat.members[1].username}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center">
+                <p className="text-white">{chat.members[1].username}</p>
+                <span className="text-xs text-gray-400">
+                  {getMessageTime(chat)}
+                </span>
+              </div>
               <p className="text-gray-400 text-sm truncate">
-                {chat.lastMessage || ""}
+                {getLastMessagePreview(chat)}
               </p>
             </div>
 
