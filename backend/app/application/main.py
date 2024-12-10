@@ -11,9 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from supertokens_python import (InputAppInfo, SupertokensConfig,
                                 get_all_cors_headers, init)
 from supertokens_python.framework.fastapi import get_middleware
+from supertokens_python.framework.request import BaseRequest
 from supertokens_python.recipe import (dashboard, emailpassword, session,
                                        userroles)
 from app.core.config import settings
+from typing import Optional
 
 
 @asynccontextmanager
@@ -27,18 +29,29 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def get_origin(request: Optional[BaseRequest]) -> str:
+    if request is not None:
+        origin = request.get_header("origin")
+        if origin is None:
+            pass
+        else:
+            if origin in settings.CORS_ORIGINS:
+                return origin
+
+    return settings.CORS_ORIGINS[0]
+
+
 def create_app():
     init(
         app_info=InputAppInfo(
             app_name="abilgram",
             api_domain=settings.API_DOMAIN,
-            website_domain=settings.WEBSITE_DOMAIN,
+            origin="http://localhost:5173",
             api_base_path="/auth",
             website_base_path="/auth",
         ),
         supertokens_config=SupertokensConfig(
             connection_uri=settings.SUPERTOKENS_URI,
-            # api_key=<API_KEY(if configured)>
         ),
         framework="fastapi",
         recipe_list=[
